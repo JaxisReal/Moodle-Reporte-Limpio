@@ -161,6 +161,12 @@ El sistema calcula la posición del participante dentro del ranking y resalta au
 
 ![Posición del participante](docs/screenshots/07-posicion-participante.png)
 
+📈 Impacto
+Reporte Limpio surgió para optimizar un proceso que requería aproximadamente 3 días de trabajo manual para procesar los reportes de finalización de 28 cursos en Moodle.
+Con la automatización, el procesamiento se redujo a aproximadamente 1–3 minutos por curso, equivalente a unos 28–84 minutos para los 28 cursos, además de automatizar la depuración de actividades duplicadas, los cálculos de avance y la generación del reporte Excel.
+Esto permitió dedicar menos tiempo al procesamiento manual y disponer de la información de seguimiento de los participantes de manera mucho más rápida.
+Redujo en ~94 % el tiempo de procesamiento de 28 reportes, pasando de ~24 horas de trabajo manual (3 jornadas) a un máximo aproximado de 84 minutos.
+
 ### 📋 Mis actividades pendientes
 
 El participante puede consultar exactamente qué actividades tiene pendientes y filtrarlas por **módulo, unidad y sesión**.
