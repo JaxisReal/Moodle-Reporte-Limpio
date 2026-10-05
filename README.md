@@ -167,7 +167,7 @@ El participante puede consultar exactamente qué actividades tiene pendientes y 
 
 ![Actividades pendientes](docs/screenshots/08-actividades-pendientes.png)
 
-### 📈 Impacto
+## 📈 Impacto
 Reporte Limpio surgió para optimizar un proceso que requería aproximadamente 3 días de trabajo manual para procesar los reportes de finalización de 28 cursos en Moodle.
 Con la automatización, el procesamiento se redujo a aproximadamente 1–3 minutos por curso, equivalente a unos 28–84 minutos para los 28 cursos, además de automatizar la depuración de actividades duplicadas, los cálculos de avance y la generación del reporte Excel.
 Esto permitió dedicar menos tiempo al procesamiento manual y disponer de la información de seguimiento de los participantes de manera mucho más rápida.
