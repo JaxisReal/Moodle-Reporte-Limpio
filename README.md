@@ -5,7 +5,7 @@ Plugin para **Moodle** orientado a la generación, procesamiento y visualizació
 **Desarrollador:** Jerry Anderson Carril Chávez  
 **Cargo:** Técnico en Administración e Informática  
 **Área:** AGP – UGEL Ascope  
-**Versión estable:** 0.6.8  
+**Versión estable:** 0.6.19  
 **Año:** 2026  
 **Licencia:** MIT
 
@@ -111,67 +111,12 @@ Mejora el contraste y legibilidad de los filtros del modal de actividades pendie
 ### V0.6.8
 Corrige el acceso de usuarios con rol Estudiante a **Mi Dashboard**, manteniendo la protección mediante inicio de sesión y matrícula activa.
 
+### V0.6.19
+Se filtran únicamente los estudiantes. Se añade regla para copias ocultas.
+
 ## Privacidad y seguridad
 
 El repositorio no debe incluir bases de datos, credenciales, contraseñas, tokens, archivos de configuración privados ni información personal de los participantes. Los datos mostrados por el plugin se obtienen desde la instalación Moodle donde se ejecuta.
-
-## 📸 Capturas del sistema
-
-Las siguientes capturas muestran el funcionamiento de **Reporte Limpio**, desde la generación automatizada del reporte hasta la integración de dashboards administrativos y de participantes en Moodle.
-
-### 📊 Reporte Excel generado
-
-El sistema organiza automáticamente las actividades según la estructura **Módulo → Unidad → Sesión**, calcula actividades finalizadas y no finalizadas y genera indicadores y gráficos de avance.
-
-![Reporte Excel generado](docs/screenshots/01-reporte-excel.png)
-
-### 📈 Dashboard administrativo
-
-Permite visualizar indicadores generales del curso, porcentaje promedio de avance, participantes sin actividad y tasa de finalización por sesión.
-
-![Dashboard administrativo](docs/screenshots/02-dashboard-general.png)
-
-### 🏆 Seguimiento y ranking de participantes
-
-El dashboard permite analizar la distribución del progreso y consultar el ranking de participantes según su porcentaje de finalización.
-
-![Ranking de participantes](docs/screenshots/03-dashboard-ranking.png)
-
-### 🔎 Detalle de actividades pendientes
-
-Desde el dashboard administrativo se pueden identificar las actividades que todavía debe completar un participante, organizadas por módulo, unidad y sesión.
-
-![Detalle de actividades pendientes](docs/screenshots/04-detalle-pendientes-admin.png)
-
-### 🎓 Mi Dashboard de Avance
-
-Los participantes autenticados pueden seleccionar uno de los cursos en los que se encuentran matriculados para consultar su progreso.
-
-![Selector de curso](docs/screenshots/05-selector-curso.png)
-
-### 👤 Dashboard del participante
-
-Cada participante puede consultar su avance individual y compararlo con el progreso general del curso.
-
-![Dashboard del participante](docs/screenshots/06-dashboard-participante.png)
-
-### 🥇 Posición dentro del curso
-
-El sistema calcula la posición del participante dentro del ranking y resalta automáticamente su propia fila mediante la etiqueta **TÚ**.
-
-![Posición del participante](docs/screenshots/07-posicion-participante.png)
-
-### 📋 Mis actividades pendientes
-
-El participante puede consultar exactamente qué actividades tiene pendientes y filtrarlas por **módulo, unidad y sesión**.
-
-![Actividades pendientes](docs/screenshots/08-actividades-pendientes.png)
-
-## 📈 Impacto
-Reporte Limpio surgió para optimizar un proceso que requería aproximadamente 3 días de trabajo manual para procesar los reportes de finalización de 28 programas de especialización en Moodle.
-Con la automatización, el procesamiento se redujo a aproximadamente 1–3 minutos por curso, equivalente a unos 28–84 minutos para los 28 cursos, además de automatizar la depuración de actividades duplicadas, los cálculos de avance y la generación del reporte Excel.
-Esto permitió dedicar menos tiempo al procesamiento manual y disponer de la información de seguimiento de los participantes de manera mucho más rápida.
-Redujo en ~94 % el tiempo de procesamiento de 28 reportes, pasando de ~24 horas de trabajo manual (3 jornadas) a un máximo aproximado de 84 minutos.
 
 ## Autor
 
