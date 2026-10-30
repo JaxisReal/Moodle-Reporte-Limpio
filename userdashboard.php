@@ -7,6 +7,7 @@ require_login();
 $courseid=required_param('courseid', PARAM_INT);
 $course=get_course($courseid);
 $cctx=context_course::instance($courseid);
+$specialdirectors = \local_reportelimpio\local\directordata::is_special($course);
 
 // Dashboard del participante: requiere inicio de sesión y matrícula activa.
 // No exigimos moodle/course:view, ya que un estudiante matriculado normalmente
@@ -17,21 +18,8 @@ if (!is_enrolled($cctx, $USER, '', true)) {
 $modinfo=get_fast_modinfo($course);
 
 // Misma jerarquía y consolidación que utiliza el Excel de Reporte Limpio.
-$hierarchy=\local_reportelimpio\local\hierarchy::activitymap($course,$modinfo);
-$activities=[];
-foreach($modinfo->get_cms() as $cm){
-    if($cm->deletioninprogress || empty($cm->completion)) continue;
-    $h=$hierarchy[$cm->id] ?? ['module'=>null,'unit'=>null,'session'=>null];
-    $activities[]=[
-        'cmid'=>$cm->id,
-        'name'=>$cm->name,
-        'modname'=>$cm->modname,
-        'sectionnum'=>$cm->sectionnum,
-        'module'=>$h['module'],
-        'unit'=>$h['unit'],
-        'session'=>$h['session']
-    ];
-}
+// Orden real de Moodle; incluye actividades sin seguimiento.
+$activities=\local_reportelimpio\local\activitysource::build($course,$modinfo);
 
 $det=(new \local_reportelimpio\local\detector())->analyse($activities);
 $clean=(new \local_reportelimpio\local\consolidator())->build($activities,$det);
@@ -45,21 +33,11 @@ foreach($clean as $i=>$a){
 }
 
 $users=get_enrolled_users($cctx,'',0,'u.id,u.firstname,u.lastname,u.email','u.lastname ASC,u.firstname ASC');
-$participants=[];
-foreach($users as $u){
-    if(is_siteadmin($u->id) && (int)$u->id !== (int)$USER->id) continue;
-    if(has_capability('moodle/course:isincompletionreports',$cctx,$u->id)
-        || (int)$u->id === (int)$USER->id){
-        $participants[$u->id]=$u;
-    }
-}
+// Solo estudiantes: el usuario conectado tampoco se contabiliza si es gestor,
+// docente o administrador. Así los porcentajes no se contaminan.
+$participants=\local_reportelimpio\local\participants::forcourse($cctx,$users);
 
-// Seguridad adicional: si por cualquier motivo get_enrolled_users() no devolvió
-// al usuario conectado, pero su matrícula está activa, lo incorporamos para
-// poder calcular su avance y posición.
-if(!isset($participants[$USER->id]) && is_enrolled($cctx,$USER,'',true)){
-    $participants[$USER->id]=$USER;
-}
+$schoolnames = $specialdirectors ? \local_reportelimpio\local\directordata::schools(array_keys($participants)) : [];
 
 $completion=new completion_info($course);
 $dashboardparticipants=[];
@@ -102,6 +80,7 @@ foreach($participants as $u){
     $isme=((int)$u->id === (int)$USER->id);
     $dashboardparticipants[]=[
         'nombre'=>fullname($u),
+        'colegio'=>$specialdirectors ? ($schoolnames[$u->id] ?? '') : '',
         'fin'=>$fin,
         'no'=>$no,
         'tot'=>$tot,
@@ -341,7 +320,7 @@ $PAGE->set_title('Mi avance - '.format_string($course->fullname));
         <p class="text-slate-400 text-sm mt-1" id="report-subtitle"></p>
       </div>
       <div class="flex items-center gap-2">
-        <input type="text" id="search-box" placeholder="Buscar participante..." class="search-input w-48 sm:w-64"/>
+        <input type="text" id="search-box" placeholder="<?php echo $specialdirectors ? 'Buscar director o colegio...' : 'Buscar participante...'; ?>" class="search-input w-48 sm:w-64"/>
         <select id="filter-status" class="search-input">
           <option value="all">Todos</option>
           <option value="100">100%</option>
@@ -355,7 +334,7 @@ $PAGE->set_title('Mi avance - '.format_string($course->fullname));
 
     <div class="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-4">
       <div class="kpi-card p-5" style="--accent:#2dd4bf;">
-        <div class="text-xs text-slate-400 uppercase tracking-widest mb-3 font-syne">Participantes</div>
+        <div class="text-xs text-slate-400 uppercase tracking-widest mb-3 font-syne"><?php echo $specialdirectors ? 'Directores' : 'Participantes'; ?></div>
         <div class="font-syne font-800 text-3xl text-white" id="kpi-total">—</div>
         <div class="text-xs text-slate-400 mt-1">Total inscritos</div>
         <div class="mt-3 prog-bar"><div class="prog-fill" id="kpi-bar-total" style="background:linear-gradient(90deg,#14b8a6,#0d9488);width:100%;"></div></div>
@@ -375,7 +354,7 @@ $PAGE->set_title('Mi avance - '.format_string($course->fullname));
       <div class="kpi-card p-5" style="--accent:#f87171;">
         <div class="text-xs text-slate-400 uppercase tracking-widest mb-3 font-syne">Sin Actividad</div>
         <div class="font-syne font-800 text-3xl text-white" id="kpi-zero">—</div>
-        <div class="text-xs text-slate-400 mt-1">participantes en 0%</div>
+        <div class="text-xs text-slate-400 mt-1"><?php echo $specialdirectors ? 'directores' : 'participantes'; ?> en 0%</div>
         <div class="mt-3 prog-bar"><div class="prog-fill" id="kpi-bar-zero" style="background:linear-gradient(90deg,#f87171,#dc2626);"></div></div>
       </div>
     </div>
@@ -414,7 +393,7 @@ $PAGE->set_title('Mi avance - '.format_string($course->fullname));
         <div class="flex items-center justify-between mb-4">
           <div>
             <div class="font-syne font-700 text-white text-sm">Distribución de Avance</div>
-            <div class="text-xs text-slate-400 mt-0.5">Participantes por rango</div>
+            <div class="text-xs text-slate-400 mt-0.5"><?php echo $specialdirectors ? 'Directores' : 'Participantes'; ?> por rango</div>
           </div>
         </div>
         <div class="chart-container-sm"><canvas id="chart-donut"></canvas></div>
@@ -424,7 +403,7 @@ $PAGE->set_title('Mi avance - '.format_string($course->fullname));
 
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-5">
       <div class="glass p-5">
-        <div class="font-syne font-700 text-white text-sm mb-1">Distribución de Participantes</div>
+        <div class="font-syne font-700 text-white text-sm mb-1"><?php echo $specialdirectors ? 'Distribución de Directores' : 'Distribución de Participantes'; ?></div>
         <div class="text-xs text-slate-400 mb-4">Por porcentaje de finalización</div>
         <div class="chart-container"><canvas id="chart-hist"></canvas></div>
       </div>
@@ -441,7 +420,7 @@ $PAGE->set_title('Mi avance - '.format_string($course->fullname));
     <div class="glass p-5">
       <div class="flex items-center justify-between mb-4 flex-wrap gap-3">
         <div>
-          <div class="font-syne font-700 text-white text-sm">Ranking y Detalle por Participante</div>
+          <div class="font-syne font-700 text-white text-sm"><?php echo $specialdirectors ? 'Ranking y Detalle por Director' : 'Ranking y Detalle por Participante'; ?></div>
           <div class="text-xs text-slate-400 mt-0.5" id="table-count">— participantes</div>
         </div>
         <div class="flex gap-2 flex-wrap">
@@ -455,7 +434,8 @@ $PAGE->set_title('Mi avance - '.format_string($course->fullname));
           <thead>
             <tr>
               <th>#</th>
-              <th>Participante</th>
+              <th><?php echo $specialdirectors ? 'Director' : 'Participante'; ?></th>
+              <?php if ($specialdirectors): ?><th>Institución Educativa</th><?php endif; ?>
               <th>Finalizados</th>
               <th>No Finalizados</th>
               <th>Total</th>
@@ -522,6 +502,34 @@ $PAGE->set_title('Mi avance - '.format_string($course->fullname));
 </div>
 
 <script>
+const SPECIAL_GESTION_2027 = <?php echo json_encode(trim(format_string($course->fullname)) === 'Gestión Escolar en las Instituciones Educativa de la UGEL de Ascope 2027'); ?>;
+function adaptLabels2027() {
+  if (!SPECIAL_GESTION_2027) return;
+  const substitutions = [
+    [/No Finalizados/gi, 'No Presentó'], [/No finalizado/gi, 'No Presentó'],
+    [/Faltantes/gi, 'No Presentó'], [/Faltante/gi, 'No Presentó'],
+    [/Finalizados/gi, 'Presentó'], [/Finalizado/gi, 'Presentó'],
+    [/Finaliz\./gi, 'Present.'], [/finalización/gi, 'presentación'],
+    [/finalizadas/gi, 'Presentó'], [/finalizada/gi, 'Presentó'],
+    [/pendientes/gi, 'No Presentó']
+  ];
+  const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+  let node;
+  while ((node = walker.nextNode())) {
+    if (node.parentElement && ['SCRIPT','STYLE'].includes(node.parentElement.tagName)) continue;
+    let value = node.nodeValue;
+    for (const [re, replacement] of substitutions) value = value.replace(re, replacement);
+    if (value !== node.nodeValue) node.nodeValue = value;
+  }
+}
+const labelObserver2027 = SPECIAL_GESTION_2027 ? new MutationObserver(() => {
+  labelObserver2027.disconnect(); adaptLabels2027();
+  labelObserver2027.observe(document.body, {childList:true,subtree:true,characterData:true});
+}) : null;
+document.addEventListener('DOMContentLoaded', () => {
+  adaptLabels2027();
+  if (labelObserver2027) labelObserver2027.observe(document.body, {childList:true,subtree:true,characterData:true});
+});
 // ─── State ────────────────────────────────────────────────────
 let allParticipants = [];
 let sessionData = {};
@@ -843,6 +851,7 @@ function parseCSV(text, filename) {
 // ─── Load & render ────────────────────────────────────────────
 function loadData(data) {
   allParticipants = data.participants;
+  document.getElementById('btn-top').textContent = '🏆 Top ' + (allParticipants.length < 50 ? '3' : '10');
   sessionData = data.sessions;
   document.getElementById('report-title').textContent = data.title;
   document.getElementById('report-subtitle').textContent = data.subtitle;
@@ -1146,11 +1155,11 @@ function showRanking(mode) {
 
 function renderRanking(mode) {
   const sorted = [...allParticipants].sort((a, b) => mode === 'top' ? b.pct - a.pct : a.pct - b.pct);
-  const top = sorted.slice(0, 10);
+  const top = sorted.slice(0, allParticipants.length < 50 ? 3 : 10);
   const container = document.getElementById('ranking-list');
   container.innerHTML = top.map((p, i) => {
     const color = p.pct >= 75 ? '#34d399' : p.pct >= 50 ? '#fbbf24' : '#f87171';
-    const medal = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `${i+1}.`;
+    const medal = mode === 'top' ? (i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `${i+1}.`) : `${i+1}.`;
     return `
       <div class="flex items-center gap-3 py-1.5">
         <span class="text-sm w-7 text-center flex-shrink-0 text-slate-400 font-syne">${medal}</span>
@@ -1175,7 +1184,7 @@ function sortTable(key) {
 
 function getFilteredParticipants() {
   return allParticipants.filter(p => {
-    const nameMatch = p.nombre.toLowerCase().includes(searchTerm);
+    const nameMatch = (p.nombre + ' ' + (p.colegio || '')).toLowerCase().includes(searchTerm);
     let statusMatch = true;
     if (currentFilter === '100') statusMatch = p.pct >= 100;
     else if (currentFilter === 'high') statusMatch = p.pct >= 75;
@@ -1186,6 +1195,9 @@ function getFilteredParticipants() {
   });
 }
 
+function escapeHtml(value) {
+  return String(value ?? '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
+}
 function renderTable() {
   const list = getFilteredParticipants();
   list.sort((a, b) => {
@@ -1196,7 +1208,7 @@ function renderTable() {
     return 0;
   });
 
-  document.getElementById('table-count').textContent = `${list.length} participante${list.length !== 1 ? 's' : ''}`;
+  document.getElementById('table-count').textContent = `${list.length} ${SPECIAL_GESTION_2027 ? (list.length !== 1 ? 'directores' : 'director') : (list.length !== 1 ? 'participantes' : 'participante')}`;
   const tbody = document.getElementById('table-body');
   tbody.innerHTML = list.map((p, i) => {
     const pct = p.pct;
@@ -1214,6 +1226,7 @@ function renderTable() {
             ${p.nombre}${p.isme ? '<span class="me-chip">TÚ</span>' : ''}
           </div>
         </td>
+        ${SPECIAL_GESTION_2027 ? `<td class="text-slate-300 text-xs" title="${escapeHtml(p.colegio || '')}">${escapeHtml(p.colegio || '—')}</td>` : ''}
         <td class="text-emerald-400 font-syne font-600">${p.fin}</td>
         <td class="text-red-400 font-syne font-600">${p.no}</td>
         <td class="text-slate-400">${p.tot}</td>

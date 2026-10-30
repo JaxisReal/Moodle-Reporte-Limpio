@@ -1,0 +1,33 @@
+# Operating system
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# Editors / IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Temporary / backup files
+*.tmp
+*.temp
+*.bak
+*.log
+*~
+
+# Archives and generated exports
+*.zip
+*.xlsx
+*.xls
+*.csv
+
+# Environment / secrets
+.env
+.env.*
+*.key
+*.pem
+
+# Dependencies if added locally
+vendor/
+node_modules/

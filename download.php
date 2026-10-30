@@ -20,36 +20,25 @@ require_capability('local/reportelimpio:view',context_system::instance());
 
 $courseid=required_param('courseid',PARAM_INT);
 $course=get_course($courseid);
+$specialgestion2027 = trim(format_string($course->fullname)) === 'Gestión Escolar en las Instituciones Educativa de la UGEL de Ascope 2027';
 $cctx=context_course::instance($courseid);
+$specialdirectors = \local_reportelimpio\local\directordata::is_special($course);
 $modinfo=get_fast_modinfo($course);
 
-// Same hierarchy logic already validated in V0.4.5.
-$hierarchy=\local_reportelimpio\local\hierarchy::activitymap($course,$modinfo);
-
-$activities=[];
-foreach($modinfo->get_cms() as $cm){
-    if($cm->deletioninprogress || empty($cm->completion)) continue;
-    $h=$hierarchy[$cm->id] ?? ['module'=>null,'unit'=>null,'session'=>null];
-    $activities[]=[
-        'cmid'=>$cm->id,
-        'name'=>$cm->name,
-        'modname'=>$cm->modname,
-        'sectionnum'=>$cm->sectionnum,
-        'module'=>$h['module'],
-        'unit'=>$h['unit'],
-        'session'=>$h['session']
-    ];
-}
+// Orden real de Moodle (sección + secuencia). Incluye las actividades sin
+// seguimiento para que no alteren la comprobación de consecutividad.
+$activities=\local_reportelimpio\local\activitysource::build($course,$modinfo);
 
 $det=(new \local_reportelimpio\local\detector())->analyse($activities);
 $clean=(new \local_reportelimpio\local\consolidator())->build($activities,$det);
 
 $users=get_enrolled_users($cctx,'',0,'u.id,u.firstname,u.lastname,u.email','u.lastname ASC,u.firstname ASC');
-$participants=[];
-foreach($users as $u){
-    if(is_siteadmin($u->id)) continue;
-    if(has_capability('moodle/course:isincompletionreports',$cctx,$u->id)) $participants[$u->id]=$u;
-}
+// Solo estudiantes: gestores, docentes y administradores quedan fuera.
+$participants=\local_reportelimpio\local\participants::forcourse($cctx,$users);
+
+$schoolnames = $specialdirectors ? \local_reportelimpio\local\directordata::schools(array_keys($participants)) : [];
+$districtnames = $specialdirectors ? \local_reportelimpio\local\directordata::districts($courseid, array_keys($participants)) : [];
+$offset = $specialdirectors ? 3 : 1;
 
 $filename=clean_filename('reporte_limpio_'.$course->shortname.'_'.date('Ymd_His').'.xlsx');
 $workbook=new MoodleExcelWorkbook('-');
@@ -83,9 +72,9 @@ if(method_exists($totalpercentfmt,'set_num_format')){
 }
 
 // Layout based on the final reference structure.
-$lastcol=count($clean)+5;
+$lastcol=count($clean)+$offset+4;
 $sheet->merge_cells(0,0,0,$lastcol);
-$sheet->write_string(0,0,'REPORTE DE FINALIZACIÓN - '.format_string($course->fullname),$titlefmt);
+$sheet->write_string(0,0,($specialdirectors ? 'REPORTE DE PRESENTACIÓN - ' : 'REPORTE DE FINALIZACIÓN - ').format_string($course->fullname),$titlefmt);
 $dias=['domingo','lunes','martes','miércoles','jueves','viernes','sábado'];
 $meses=[1=>'Enero',2=>'Febrero',3=>'Marzo',4=>'Abril',5=>'Mayo',6=>'Junio',
         7=>'Julio',8=>'Agosto',9=>'Setiembre',10=>'Octubre',11=>'Noviembre',12=>'Diciembre'];
@@ -101,7 +90,15 @@ $sheet->write_string(2,0,'Fecha de Corte: '.$fechacorte,$metafmt);
 $sheet->write_string(3,0,'MÓDULO',$level);
 $sheet->write_string(4,0,'UNIDAD',$level);
 $sheet->write_string(5,0,'SESIÓN',$level);
-$sheet->write_string(6,0,'PARTICIPANTE',$header);
+$sheet->write_string(6,0,$specialdirectors ? 'DIRECTOR' : 'PARTICIPANTE',$header);
+if ($specialdirectors) {
+    foreach ([1 => 'INSTITUCIÓN EDUCATIVA', 2 => 'DISTRITO'] as $col => $label) {
+        for ($r=3; $r<=5; $r++) $sheet->write_blank($r,$col,$level);
+        $sheet->merge_cells(3,$col,5,$col);
+        $sheet->write_string(3,$col,$label,$level);
+        $sheet->write_string(6,$col,$label,$header);
+    }
+}
 
 // La inducción (Sesión 0) se representa como Módulo 0 / Unidad 0,
 // igual que el reporte modelo.
@@ -114,7 +111,7 @@ foreach($clean as $i=>$a){
 
 // Actividades.
 foreach($clean as $i=>$a){
-    $sheet->write_string(6,$i+1,$a['name'],$header);
+    $sheet->write_string(6,$i+$offset,$a['name'],$header);
 }
 
 // Combina horizontalmente grupos consecutivos de Módulo, Unidad y Sesión.
@@ -138,8 +135,8 @@ foreach($levels as $lev){
             $end++;
         }
 
-        $firstcol=$start+1;
-        $lastgroupcol=$end+1;
+        $firstcol=$start+$offset;
+        $lastgroupcol=$end+$offset;
         $label=($value===null || $value==='') ? '' : $lev['prefix'].$value;
 
         if($label!=='' && $lastgroupcol>$firstcol){
@@ -161,7 +158,7 @@ foreach($levels as $lev){
 }
 
 // Summary headers align with the activity header row.
-$c=count($clean)+1;
+$c=count($clean)+$offset;
 // Un solo bloque CÁLCULOS para las tres filas jerárquicas.
 for($r=3;$r<=5;$r++){
     for($col=$c;$col<=$c+4;$col++){
@@ -171,14 +168,15 @@ for($r=3;$r<=5;$r++){
 $sheet->merge_cells(3,$c,5,$c+4);
 $sheet->write_string(3,$c,'CÁLCULOS',$calcblockfmt);
 
-foreach(['FIN','NO','TOT','FIN%','NO%'] as $j=>$h){
+foreach(($specialgestion2027 ? ['PRE','NP','TOT','PRE%','NP%'] : ['FIN','NO','TOT','FIN%','NO%']) as $j=>$h){
     $sheet->write_string(6,$c+$j,$h,$header);
 }
 
 $sheet->set_row(0,26);
 $sheet->set_row(3,28); $sheet->set_row(4,28); $sheet->set_row(5,28); $sheet->set_row(6,55);
 $sheet->set_column(0,0,30);
-if(count($clean)>0) $sheet->set_column(1,count($clean),18);
+if ($specialdirectors) { $sheet->set_column(1,1,28); $sheet->set_column(2,2,19); }
+if(count($clean)>0) $sheet->set_column($offset,$offset+count($clean)-1,18);
 $sheet->set_column($c,$c+4,11);
 
 $completion=new completion_info($course);
@@ -187,11 +185,15 @@ $grandfin=0; $grandno=0;
 
 foreach($participants as $u){
     $sheet->write_string($row,0,fullname($u),$normal);
+    if ($specialdirectors) {
+        $sheet->write_string($row,1,$schoolnames[$u->id] ?? '',$normal);
+        $sheet->write_string($row,2,$districtnames[$u->id] ?? '',$normal);
+    }
     $fin=0;
 
     foreach($clean as $i=>$a){
         $done=\local_reportelimpio\local\reportdata::state_for_user($completion,$modinfo,$activities,$a,$u->id);
-        $sheet->write_string($row,$i+1,$done?'Finalizado':'No finalizado',$done?$finalizado:$nofinalizado);
+        $sheet->write_string($row,$i+$offset,$done?($specialgestion2027?'Presentó':'Finalizado'):($specialgestion2027?'No Presentó':'No finalizado'),$done?$finalizado:$nofinalizado);
         if($done) $fin++;
     }
 
@@ -250,7 +252,7 @@ $nativeSheet->getStyle($nopctcol.'8:'.$nopctcol.$exceltotalrow)
     ->getNumberFormat()->setFormatCode('0.00%');
 
 // 3) Congelar panel en B8 y filtro sobre encabezados/participantes.
-$nativeSheet->freezePane('B8');
+$nativeSheet->freezePane($specialdirectors ? 'D8' : 'B8');
 $nativeSheet->setAutoFilter('A7:'.$calclast.($row)); // Hasta el último participante, antes de TOTALES.
 
 // 4) Gráfico de pastel basado directamente en FIN% y NO% de TOTALES.
@@ -282,7 +284,7 @@ $layout->setShowVal(false);
 
 $plotarea=new PlotArea($layout,[$series]);
 $legend=new Legend(Legend::POSITION_RIGHT,null,false);
-$charttitle=new Title('Porcentaje de finalización');
+$charttitle=new Title($specialgestion2027 ? 'Porcentaje de presentación' : 'Porcentaje de finalización');
 $chart=new Chart(
     'porcentaje_finalizacion',
     $charttitle,

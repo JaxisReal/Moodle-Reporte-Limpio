@@ -25,39 +25,28 @@ if($courseid){
  echo $OUTPUT->notification(get_string('readonlynotice','local_reportelimpio'),'info');
  echo html_writer::tag('h3',format_string($course->fullname));
 
- $modinfo=get_fast_modinfo($course); $activities=[];
- foreach($modinfo->get_cms() as $cm){
-   if($cm->deletioninprogress || empty($cm->completion))continue;
-   $sectioninfo=$modinfo->get_section_info($cm->sectionnum);
-   $sectionname='';
-   if($sectioninfo){
-     $sectionname=get_section_name($course,$sectioninfo);
-   }
-   $activities[]=[
-     'cmid'=>$cm->id,
-     'name'=>$cm->name,
-     'modname'=>$cm->modname,
-     'sectionnum'=>$cm->sectionnum,
-     'sectionname'=>$sectionname
-   ];
- }
+ $modinfo=get_fast_modinfo($course);
+ $activities=\local_reportelimpio\local\activitysource::build($course,$modinfo,true);
  $det=(new \local_reportelimpio\local\detector())->analyse($activities);
  $clean=(new \local_reportelimpio\local\consolidator())->build($activities,$det);
 
- echo html_writer::tag('p',get_string('trackedactivitycount','local_reportelimpio',count($activities)));
+ $tracked=\local_reportelimpio\local\activitysource::trackedcount($activities);
+ echo html_writer::tag('p',get_string('trackedactivitycount','local_reportelimpio',$tracked));
  if($det['detected']){
-   $a=(object)['pairs'=>$det['paircount'],'start'=>s($det['start']),'end'=>s($det['end'])];
+   $a=(object)['pairs'=>$det['duplicatecount'],'start'=>s($det['start']),'end'=>s($det['end'])];
    echo $OUTPUT->notification(get_string('duplicatesfound','local_reportelimpio',$a),'warning');
  } else echo $OUTPUT->notification(get_string('noduplicates','local_reportelimpio'),'success');
+ if($det['unmatchedcount']){
+   echo $OUTPUT->notification(get_string('unmatchedfound','local_reportelimpio',$det['unmatchedcount']),'warning');
+ }
 
- $sum=(object)['original'=>count($activities),'pairs'=>$det['paircount'],'clean'=>count($clean)];
+ $sum=(object)['original'=>$tracked,'pairs'=>$det['duplicatecount'],'clean'=>count($clean)];
  echo $OUTPUT->notification(get_string('consolidationsummary','local_reportelimpio',$sum),'info');
 
  $users=get_enrolled_users($cctx,'',0,'u.id,u.firstname,u.lastname,u.email','u.lastname ASC,u.firstname ASC');
- $participants=[];
- foreach($users as $u){
-   if(is_siteadmin($u->id))continue;
-   if(has_capability('moodle/course:isincompletionreports',$cctx,$u->id))$participants[$u->id]=$u;
+ $participants=\local_reportelimpio\local\participants::forcourse($cctx,$users);
+ if(!$participants && $users){
+   echo $OUTPUT->notification(get_string('nostudentsfound','local_reportelimpio'),'warning');
  }
  echo html_writer::tag('p',get_string('participantcount','local_reportelimpio',count($participants)));
 
@@ -95,7 +84,7 @@ echo html_writer::tag('p',
     '<strong>Desarrollador:</strong> Jerry Anderson Carril Chávez<br>'.
     '<strong>Cargo:</strong> Técnico en Administración e Informática<br>'.
     '<strong>Área:</strong> AGP – UGEL Ascope<br>'.
-    '<strong>Versión:</strong> 0.6.0<br>'.
+    '<strong>Versión:</strong> 0.6.19<br>'.
     '<strong>Año:</strong> 2026<br>'.
     '<strong>Descripción:</strong> Plugin para Moodle orientado a la generación y consolidación de reportes de finalización, incluyendo detección jerárquica de módulos, unidades y sesiones.',
     ['class'=>'card-text']
