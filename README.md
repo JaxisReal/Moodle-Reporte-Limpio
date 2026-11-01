@@ -111,6 +111,9 @@ Mejora el contraste y legibilidad de los filtros del modal de actividades pendie
 ### V0.6.8
 Corrige el acceso de usuarios con rol Estudiante a **Mi Dashboard**, manteniendo la protección mediante inicio de sesión y matrícula activa.
 
+### V0.6.19
+Filtra únicamente a usuarios con rol Estudiante y añade una regla para el manejo de copias ocultas.
+
 ## Privacidad y seguridad
 
 El repositorio no debe incluir bases de datos, credenciales, contraseñas, tokens, archivos de configuración privados ni información personal de los participantes. Los datos mostrados por el plugin se obtienen desde la instalación Moodle donde se ejecuta.
